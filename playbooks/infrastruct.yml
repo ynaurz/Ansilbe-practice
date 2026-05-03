@@ -1,0 +1,119 @@
+---
+- name: Create container-based infrastructure
+  hosts: localhost
+  become: true
+  gather_facts: true
+
+  vars:
+    container_runtime: podman
+    container_image: localhost/devops-debian-node:bookworm
+    container_network: devops_net
+    container_subnet: 172.30.0.0/24
+
+    containers:
+      - name: web-1
+        ip: 172.30.0.11
+      - name: proxy-1
+        ip: 172.30.0.12
+      - name: monitor-1
+        ip: 172.30.0.13
+      - name: node-4
+        ip: 172.30.0.14
+      - name: node-5
+        ip: 172.30.0.15
+
+  tasks:
+    - name: Install Podman on Fedora/RHEL
+      ansible.builtin.dnf:
+        name:
+          - podman
+        state: present
+      when: ansible_os_family == "RedHat"
+
+    - name: Install Podman on Debian
+      ansible.builtin.apt:
+        name:
+          - podman
+        state: present
+        update_cache: true
+      when: ansible_os_family == "Debian"
+
+    - name: Show selected container runtime
+      ansible.builtin.command: "{{ container_runtime }} --version"
+      register: runtime_version
+      changed_when: false
+
+    - name: Print selected container runtime
+      ansible.builtin.debug:
+        var: runtime_version.stdout
+
+    - name: Build Debian Bookworm container image
+      ansible.builtin.command:
+        cmd: "{{ container_runtime }} build -t {{ container_image }} infra"
+      args:
+        chdir: "{{ playbook_dir }}/.."
+
+    - name: Remove existing containers
+      ansible.builtin.command:
+        cmd: "{{ container_runtime }} rm -f {{ item.name }}"
+      loop: "{{ containers }}"
+      failed_when: false
+      changed_when: false
+
+    - name: Remove existing container network
+      ansible.builtin.command:
+        cmd: "{{ container_runtime }} network rm {{ container_network }}"
+      failed_when: false
+      changed_when: false
+
+    - name: Create Podman network
+      ansible.builtin.command:
+        cmd: "{{ container_runtime }} network create --subnet {{ container_subnet }} {{ container_network }}"
+      register: network_create
+      changed_when: network_create.rc == 0
+
+    - name: Start infrastructure containers
+      ansible.builtin.command:
+        cmd: >
+          {{ container_runtime }} run -d
+          --name {{ item.name }}
+          --hostname {{ item.name }}
+          --privileged
+          --systemd=true
+          --network {{ container_network }}
+          --ip {{ item.ip }}
+          --tmpfs /run
+          --tmpfs /run/lock
+          -v /sys/fs/cgroup:/sys/fs/cgroup:ro
+          {{ container_image }}
+          /sbin/init
+      loop: "{{ containers }}"
+
+    - name: Show containers status
+      ansible.builtin.command:
+        cmd: "{{ container_runtime }} ps -a"
+      register: containers_status
+      changed_when: false
+
+    - name: Print containers status
+      ansible.builtin.debug:
+        var: containers_status.stdout_lines
+
+    - name: Fail early if any container is not running
+      ansible.builtin.shell: |
+        status=$({{ container_runtime }} inspect {{ item.name }} --format '{{ "{{.State.Status}}" }}' 2>/dev/null || echo missing)
+        if [ "$status" != "running" ]; then
+          echo "{{ item.name }} is not running. Current status: $status"
+          echo "Container logs:"
+          {{ container_runtime }} logs {{ item.name }} || true
+          exit 1
+        fi
+      loop: "{{ containers }}"
+      changed_when: false
+
+    - name: Wait for SSH inside containers
+      ansible.builtin.wait_for:
+        host: "{{ item.ip }}"
+        port: 22
+        timeout: 120
+      loop: "{{ containers }}"

@@ -1,0 +1,4 @@
+- hosts: web:proxy
+  become: true
+  roles:
+    - nginx

@@ -1,0 +1,4 @@
+- hosts: daemon
+  become: true
+  roles:
+    - daemon

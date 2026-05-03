@@ -1,0 +1,60 @@
+- name: Install daemontools
+  apt:
+    name:
+      - daemontools
+      - daemontools-run
+    state: present
+    update_cache: true
+
+- name: Create health service
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - /service
+    - /service/health-check
+    - /service/health-check/log
+
+- name: Create health-check log directory
+  file:
+    path: "/var/log/health-check"
+    state: directory
+    mode: '0755'
+
+- name: Copy daemon run script
+  copy:
+    src: run
+    dest: /service/health-check/run
+    mode: '0755'
+
+- name: Copy multilog run script
+  copy:
+    src: log-run
+    dest: /service/health-check/log/run
+    mode: '0755'
+
+- name: Deploy svscan
+  copy: 
+    dest: /etc/systemd/system/svscan.service
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=daemontools svscan
+      After=network.target
+
+      [Service]
+      Type=simple
+      ExecStart=/bin/sh -c 'exec /usr/bin/svscan /service'
+      Restart=always
+      RestartSec=5
+
+      [Install]
+      WantedBy=multi-user.target
+
+- name: Enable and start svscan
+  systemd:
+    name: svscan
+    enabled: true
+    state: started
+    daemon_reload: true

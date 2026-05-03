@@ -1,0 +1,6 @@
+- import_playbook: infrastruct.yml
+- import_playbook: base.yml
+- import_playbook: nginx.yml
+- import_playbook: monitoring.yml
+- import_playbook: etcd.yml
+- import_playbook: daemon.yml

@@ -1,0 +1,58 @@
+- name: Install nginx
+  apt:
+    name: nginx
+    state: present
+    update_cache: true
+
+- name: Create static web
+  file: 
+    path: /var/www/html
+    state: directory
+    mode: '0755'
+  when: inventory_hostname == "web-1"
+
+- name: Create static index page 
+  copy:
+    dest: /var/www/html/index.html
+    content: |
+      <html>
+        <head><title>web-1</title></head>
+        <body>
+          <h1>Devops assignment - web-1</h1>
+          <p>Static nginx web server is running</p>
+        </body>
+      </html>
+    owner: www-data
+    group: www-data
+    mode: '0644'
+  when: inventory_hostname == "web-1"
+  notify: restart nginx
+
+- name: Deploy web nginx config
+  template:
+    src: web.conf.j2
+    dest: /etc/nginx/sites-available/default
+  when: inventory_hostname == "web-1"
+  notify: restart nginx
+
+- name: Deploy proxy nginx config
+  template:
+    src: proxy.conf.j2
+    dest: /etc/nginx/sites-available/default
+  when: inventory_hostname == "proxy-1"
+  notify: restart nginx
+
+- name: Create nginx cache direct
+  file:
+    path: /var/cache/nginx/mycache
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: "0755"
+  when: inventory_hostname == "proxy-1"
+
+- name: Ensure nginx is enabled and running
+  systemd:
+    name: nginx
+    enabled: true
+    state: started

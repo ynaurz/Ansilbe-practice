@@ -1,0 +1,17 @@
+- name: Install base packages
+  apt:
+    name:
+      - curl
+      - bash
+      - vim
+      - htop
+      - net-tools
+      - openssh-server
+    state: present
+    update_cache: true
+
+- name: Ensure ssh is enabled and running
+  systemd:
+    name: ssh
+    enabled: true
+    state: started

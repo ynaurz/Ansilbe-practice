@@ -1,0 +1,38 @@
+#!/bin/bash
+
+exec 2>&1
+
+log_load() {
+    TS=$(date '+%F %T')
+    HOST=$(hostname)
+    LOAD=$(cut -d' ' -f1-3 /proc/loadavg)
+
+    echo "$TS | type=load | host=$HOST | loadavg=$LOAD"
+}
+
+log_nginx() {
+    NAME="$1"
+    URL="$2"
+    TS=$(date '+%F %T')
+
+    echo "$TS | type=nginx | service=$NAME | url=$URL"
+
+    RESPONSE=$(curl -s -i --max-time 5 "$URL")
+
+    if [[ $? -eq 0 ]]; then
+        echo "$TS | headers:"
+        echo "$RESPONSE" | sed '/^\r$/q'
+        echo "$TS | body:"
+        echo "$RESPONSE" | sed '1,/^\r$/d'
+    else
+        echo "$TS | ERROR: curl failed"
+    fi
+}
+
+while true; do
+    log_load
+    log_nginx "nginx-web" "http://172.30.0.11/nginx_status"
+    log_nginx "nginx-proxy" "http://172.30.0.12/nginx_status"
+    echo "----------------------------------"
+    sleep 10
+done

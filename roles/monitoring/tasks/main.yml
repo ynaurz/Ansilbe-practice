@@ -1,0 +1,3 @@
+- name: Placeholder for Prometheus setup
+  debug:
+    msg: "Prometheus role will be conf here"

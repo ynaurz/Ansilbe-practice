@@ -1,0 +1,22 @@
+proxy_cache_path /var/cache/nginx/mycache levels=1:2 keys_zone=mycache:10m max_size=100m inactive=60m use_temp_path=off;
+
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+
+    location / {
+        proxy_pass http://172.30.0.11;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_cache mycache;
+        proxy_cache_valid 200 1m;
+        add_header X-Proxy-Cache $upstream_cache_status;
+    }
+
+    location /nginx_status {
+        stub_status;
+        allow 127.0.0.1;
+        allow 172.30.0.13;
+        deny all;
+    }
+}
